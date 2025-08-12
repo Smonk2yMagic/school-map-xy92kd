@@ -73,9 +73,10 @@ const HOTSPOTS = [...hotspots_1f, ...hotspots_2f, ...hotspots_3f];
 /***** 로직 *****/
 const mapEl      = document.getElementById('map');
 const hotLayer   = document.getElementById('hotspots');
-const showDotsEl = document.getElementById('showDots');
-const coordModeEl= document.getElementById('coordMode');
-const lastClickEl= document.getElementById('lastClick');
+//개발자용 UI 제거
+//const showDotsEl = document.getElementById('showDots');
+//const coordModeEl= document.getElementById('coordMode');
+//const lastClickEl= document.getElementById('lastClick');
 
 let currentFloor = 'floor2_resized.png';
 const teacherMode = new Set();
@@ -103,47 +104,23 @@ function setMapSrc(fileName){
 document.querySelectorAll('.toolbar [data-floor]')
   .forEach(btn => btn.addEventListener('click', ()=> setMapSrc(btn.dataset.floor)));
 
-// 좌표 찍기 모드
-mapEl.addEventListener('click',(e)=>{
-  if(!coordModeEl?.checked) return;
-  const rect = mapEl.getBoundingClientRect();
-  const x = Number((((e.clientX-rect.left)/rect.width )*100).toFixed(2));
-  const y = Number((((e.clientY-rect.top )/rect.height)*100).toFixed(2));
-  if (lastClickEl) lastClickEl.textContent = `좌표: ${x}%, ${y}% (floor: ${currentFloor})`;
-
-  if (showDotsEl?.checked){
-    const temp = document.createElement('div');
-    temp.className='hotspot';
-    temp.style.left=x+'%'; temp.style.top=y+'%';
-    hotLayer.appendChild(temp); setTimeout(()=>temp.remove(),900);
-  }
-});
-
 // 렌더링
 function renderHotspots(){
   hotLayer.innerHTML='';
-  const showDots = !!showDotsEl?.checked;
 
   HOTSPOTS.filter(h=>h.floor===currentFloor).forEach(h=>{
-    // 핀
-    const pin = document.createElement('div');
-    pin.className='hotspot';
-    if(!showDots) pin.classList.add('hidden');
-    pin.style.left=h.x+'%'; pin.style.top=h.y+'%';
-    pin.title = h.label || h.id;
-    pin.addEventListener('click', ()=> toggleLabel(h.id));
-    hotLayer.appendChild(pin);
-
-    // 라벨
+    // 라벨만 생성 (마커는 만들지 않음)
     const lab = document.createElement('div');
     lab.className='label';
-    lab.style.left=h.x+'%'; lab.style.top=h.y+'%';
+    lab.style.left=h.x+'%'; 
+    lab.style.top =h.y+'%';
     lab.dataset.id = h.id;
     updateLabel(lab, h.id);
     lab.addEventListener('click', ()=> toggleLabel(h.id));
     hotLayer.appendChild(lab);
   });
 }
+
 
 // 라벨 업데이트
 function updateLabel(el, id){
@@ -188,10 +165,6 @@ const TEACHERS = {
   inclusive_support: ["채00(특수교육)"],
   dept_multi: ["김00(수Ⅱ, 미적분)", "조00(영어Ⅱ, 진로영어)", "최00(지구과학, 통합과학)", "최00(체육)"],
 };
-
-
-// 마커 표시 스위치 → 즉시 리렌더
-showDotsEl?.addEventListener('change', renderHotspots);
 
 // 시작: 2층 로드
 setMapSrc(currentFloor);
