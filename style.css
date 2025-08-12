@@ -32,3 +32,5 @@ button{ padding:8px 14px; cursor:pointer; }
 
 /* 안내 패널 */
 .panel{ width:var(--wrap-w); max-width:98vw; margin:10px auto; background:#fff; border:1px solid #ddd; text-align:left; padding:10px; font-size:14px; }
+
+#map-inner { position: relative; transform-origin: 0 0; touch-action: none; }
