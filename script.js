@@ -180,6 +180,8 @@ let lastX = 0, lastY = 0;
 // 유틸
 function applyTransform(){
   inner.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
+  // 라벨은 역스케일로 크기 유지
+  hotLayer.style.setProperty('--labelScale', (1/scale));
 }
 function distance(touches){
   const [a,b] = touches;
