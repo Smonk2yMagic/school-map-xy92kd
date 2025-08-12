@@ -155,87 +155,156 @@ function toggleLabel(id){
 
 // ===== 교무실별 선생님 명단 =====
 const TEACHERS = {
-  office_edu: ["박00(음악)", "용00(확률과 통계)", "장00(국어, 현대문학과감상)", "김00(기술가정, 식품과영양, 가정과학)", "정00(정치와법, 사회문화)"],
-  nurse: ["박00(보건)"],
-  grade3_dept: ["박00(화법과작문, 심화국어)", "이00(통합사회, 한국지리, 세계지리)", "안00(영어독해와작문)", "박00(생명과학, 과학탐구실험)"],
-  student_dept: ["허00(화학, 통합과학)", "임00(생활과윤리, 윤리와사상)", "김00(영어, 영어권문화)", "장00(언어와매체, 독서)", "윤00(수학, 기하)"],
-  wee_class: ["김00(상담)"],
-  career: ["정00(진로)"],
-  library: ["정00(사서)"],
-  inclusive_support: ["채00(특수교육)"],
-  dept_multi: ["김00(수Ⅱ, 미적분)", "조00(영어Ⅱ, 진로영어)", "최00(지구과학, 통합과학)", "최00(체육)"],
+  office_edu: ["박00 선생님(음악)", "용00 선생님(확률과 통계)", "장00 선생님(국어, 현대문학과감상)", "김00 선생님(기술가정, 식품과영양, 가정과학)", "정00 선생님(정치와법, 사회문화)"],
+  nurse: ["박00 선생님(보건)"],
+  grade3_dept: ["박00 선생님(화법과작문, 심화국어)", "이00 선생님(통합사회, 한국지리, 세계지리)", "안00 선생님(영어독해와작문)", "박00 선생님(생명과학, 과학탐구실험)"],
+  student_dept: ["허00 선생님(화학, 통합과학)", "임00 선생님(생활과윤리, 윤리와사상)", "김00 선생님(영어, 영어권문화)", "장00 선생님(언어와매체, 독서)", "윤00 선생님(수학, 기하)"],
+  wee_class: ["김00 선생님(상담)"],
+  career: ["정00 선생님(진로)"],
+  library: ["정00 선생님(사서)"],
+  inclusive_support: ["채00 선생님(특수교육)"],
+  dept_multi: ["김00 선생님(수Ⅱ, 미적분)", "조00 선생님(영어Ⅱ, 진로영어)", "최00 선생님(지구과학, 통합과학)", "최00 선생님(체육)"],
 };
 
 // 시작: 2층 로드
 setMapSrc(currentFloor);
 
-// ===== 핀치-줌 & 드래그 (모바일 최적화) =====
-const inner = document.getElementById('map-inner');
+/* ===== PC/모바일 공통: 드래그 + 핀치줌 + 라벨 고정 크기(최종) ===== */
+(function(){
+  const innerEl = document.getElementById('map-inner') || document.getElementById('map-wrap');
+  const hotLayer = document.getElementById('hotspots');
+  if (!innerEl || !hotLayer) return;
 
-let scale = 1, minS = 1, maxS = 3;
-let originX = 0, originY = 0;       // 드래그 평행이동
-let isPanning = false;
-let lastX = 0, lastY = 0;
+  // 중복 바인딩 방지
+  if (innerEl.dataset.pzBound === '1') return;
+  innerEl.dataset.pzBound = '1';
 
-// 유틸
-function applyTransform(){
-  inner.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
-  // 라벨은 역스케일로 크기 유지
-  hotLayer.style.setProperty('--labelScale', (1/scale));
-}
-function distance(touches){
-  const [a,b] = touches;
-  const dx = a.clientX - b.clientX, dy = a.clientY - b.clientY;
-  return Math.hypot(dx, dy);
-}
+  // 상태
+  const PZ = {
+    s: 1, minS: 1, maxS: 3,   // 확대 배율
+    tx: 0, ty: 0,             // 평행이동
+    // PC 드래그(클릭과 구분)
+    dragThreshold: 4,
+    isPan: false,
+    startX: 0, startY: 0,
+    lastX: 0, lastY: 0,
+    // 터치 핀치
+    startD: 0, startS: 1
+  };
 
-// ---- 드래그(한 손가락/마우스)
-inner.addEventListener('pointerdown', (e)=>{
-  inner.setPointerCapture?.(e.pointerId);
-  isPanning = true;
-  lastX = e.clientX; lastY = e.clientY;
-  // 드래그 중 라벨 클릭 오작동 방지
-  hotLayer.style.pointerEvents = 'none';
-});
-inner.addEventListener('pointermove', (e)=>{
-  if(!isPanning) return;
-  originX += (e.clientX - lastX);
-  originY += (e.clientY - lastY);
-  lastX = e.clientX; lastY = e.clientY;
-  applyTransform();
-});
-inner.addEventListener('pointerup', ()=>{
-  isPanning = false;
-  hotLayer.style.pointerEvents = '';  // 다시 클릭 가능
-});
-
-// ---- 핀치줌(두 손가락)
-let startD = 0, startScale = 1;
-inner.addEventListener('touchstart', (e)=>{
-  if (e.touches.length === 2){
-    e.preventDefault();               // 브라우저 기본 확대 방지
-    startD = distance(e.touches);
-    startScale = scale;
+  function applyTransform(){
+    innerEl.style.transform = `translate(${PZ.tx}px, ${PZ.ty}px) scale(${PZ.s})`;
+    // 라벨은 역스케일로 크기 고정
+    hotLayer.style.setProperty('--labelScale', 1 / PZ.s);
   }
-},{passive:false});
 
-inner.addEventListener('touchmove', (e)=>{
-  if (e.touches.length === 2){
+  // 거리(핀치)
+  function dist(ts){
+    const [a,b] = ts;
+    const dx = a.clientX - b.clientX, dy = a.clientY - b.clientY;
+    return Math.hypot(dx, dy);
+  }
+
+/* ==== PC: 마우스/펜 드래그(클릭과 구분, 초안정) ==== */
+const DRAG_THRESHOLD = 4; // px
+let maybePan = false;     // 클릭과 드래그 후보를 구분
+let isPan = false;
+let startX = 0, startY = 0;
+let lastX  = 0, lastY  = 0;
+
+function applyTransformSafe(){
+  // 네 IIFE 안의 applyTransform을 쓰고 있다면 이 함수 대신 기존 걸 호출해도 OK
+  // 여기서는 예시로 pzApplyTransform 같은 기존 함수를 호출하세요.
+  // pzApplyTransform();  ← 기존 함수명 사용
+  applyTransform();       // ← 네 블록명에 맞게 바꾸세요 (없으면 pzApplyTransform)
+}
+
+function endPan(){
+  maybePan = false;
+  isPan = false;
+  hotLayer.style.pointerEvents = 'auto'; // 라벨 클릭 복구
+}
+
+innerEl.addEventListener('pointerdown', (e)=>{
+  // 왼쪽 버튼만 드래그 후보로 인정
+  if (e.button !== 0) return;
+  // setPointerCapture 사용 안 함 (브라우저/트랙패드 버그 방지)
+  maybePan = true;
+  isPan = false;                 // 아직은 클릭
+  startX = lastX = e.clientX;
+  startY = lastY = e.clientY;
+  // pointerEvents 여기서 끄지 않음
+});
+
+innerEl.addEventListener('pointermove', (e)=>{
+  // 버튼이 떠버렸으면 즉시 종료
+  if (e.buttons !== 1) { endPan(); return; }
+
+  if (maybePan && !isPan) {
+    const dx0 = e.clientX - startX;
+    const dy0 = e.clientY - startY;
+    if (Math.abs(dx0) > DRAG_THRESHOLD || Math.abs(dy0) > DRAG_THRESHOLD) {
+      isPan = true;
+      hotLayer.style.pointerEvents = 'none'; // 진짜 드래그 시작된 뒤에만 클릭 차단
+    } else {
+      return; // 아직 클릭 후보
+    }
+  }
+  if (!isPan) return;
+
+  // 실제 드래그
+  const dx = e.clientX - lastX;
+  const dy = e.clientY - lastY;
+  PZ.tx += dx; PZ.ty += dy;      // ← 네 IIFE에서 쓰는 평행이동 상태명 유지
+  lastX = e.clientX; lastY = e.clientY;
+  applyTransformSafe();
+});
+
+innerEl.addEventListener('pointerup', endPan);
+innerEl.addEventListener('pointercancel', endPan);
+innerEl.addEventListener('pointerleave', endPan);
+window.addEventListener('mouseup', endPan);
+window.addEventListener('blur', endPan);
+
+// 드래그 후 남는 “유령 클릭” 방지 (옵션)
+innerEl.addEventListener('click', (e)=>{
+  if (isPan) e.preventDefault();
+}, true);
+
+  /* ==== 모바일: 두 손가락 핀치줌 ==== */
+  innerEl.addEventListener('touchstart', (e)=>{
+    if (e.touches.length === 2){
+      e.preventDefault();
+      PZ.startD = dist(e.touches);
+      PZ.startS = PZ.s;
+      hotLayer.style.pointerEvents = 'none'; // 핀치 중 클릭 차단
+    }
+  }, {passive:false});
+
+  innerEl.addEventListener('touchmove', (e)=>{
+    if (e.touches.length === 2){
+      e.preventDefault();
+      const ratio = dist(e.touches) / PZ.startD;
+      PZ.s = Math.min(PZ.maxS, Math.max(PZ.minS, PZ.startS * ratio));
+      applyTransform();
+    }
+  }, {passive:false});
+
+  function endPinch(){
+    hotLayer.style.pointerEvents = 'auto';
+  }
+  innerEl.addEventListener('touchend', endPinch, {passive:true});
+  innerEl.addEventListener('touchcancel', endPinch, {passive:true});
+
+  /* ==== (선택) 데스크톱 휠로 줌(Ctrl/⌘ + 휠) ==== */
+  innerEl.addEventListener('wheel', (e)=>{
+    if (!e.ctrlKey && !e.metaKey) return; // 일반 휠까지 쓰려면 이 줄 지우세요
     e.preventDefault();
-    const ratio = distance(e.touches) / startD;
-    scale = Math.min(maxS, Math.max(minS, startScale * ratio));
+    const factor = e.deltaY < 0 ? 1.05 : 0.95;
+    PZ.s = Math.min(PZ.maxS, Math.max(PZ.minS, PZ.s * factor));
     applyTransform();
-  }
-},{passive:false});
+  }, {passive:false});
 
-// ---- (선택) 데스크톱 휠줌
-inner.addEventListener('wheel', (e)=>{
-  if (!e.ctrlKey && !e.metaKey) return; // 트랙패드 제스처만 반응(원하면 지워도 됨)
-  e.preventDefault();
-  const delta = e.deltaY < 0 ? 1.05 : 0.95;
-  scale = Math.min(maxS, Math.max(minS, scale * delta));
+  // 초기 1회 적용
   applyTransform();
-}, {passive:false});
-
-// 초기 적용
-applyTransform();
+})();
