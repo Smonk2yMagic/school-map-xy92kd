@@ -195,3 +195,72 @@ showDotsEl?.addEventListener('change', renderHotspots);
 
 // 시작: 2층 로드
 setMapSrc(currentFloor);
+
+// ===== 핀치-줌 & 드래그 (모바일 최적화) =====
+const inner = document.getElementById('map-inner');
+
+let scale = 1, minS = 1, maxS = 3;
+let originX = 0, originY = 0;       // 드래그 평행이동
+let isPanning = false;
+let lastX = 0, lastY = 0;
+
+// 유틸
+function applyTransform(){
+  inner.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
+}
+function distance(touches){
+  const [a,b] = touches;
+  const dx = a.clientX - b.clientX, dy = a.clientY - b.clientY;
+  return Math.hypot(dx, dy);
+}
+
+// ---- 드래그(한 손가락/마우스)
+inner.addEventListener('pointerdown', (e)=>{
+  inner.setPointerCapture?.(e.pointerId);
+  isPanning = true;
+  lastX = e.clientX; lastY = e.clientY;
+  // 드래그 중 라벨 클릭 오작동 방지
+  hotLayer.style.pointerEvents = 'none';
+});
+inner.addEventListener('pointermove', (e)=>{
+  if(!isPanning) return;
+  originX += (e.clientX - lastX);
+  originY += (e.clientY - lastY);
+  lastX = e.clientX; lastY = e.clientY;
+  applyTransform();
+});
+inner.addEventListener('pointerup', ()=>{
+  isPanning = false;
+  hotLayer.style.pointerEvents = '';  // 다시 클릭 가능
+});
+
+// ---- 핀치줌(두 손가락)
+let startD = 0, startScale = 1;
+inner.addEventListener('touchstart', (e)=>{
+  if (e.touches.length === 2){
+    e.preventDefault();               // 브라우저 기본 확대 방지
+    startD = distance(e.touches);
+    startScale = scale;
+  }
+},{passive:false});
+
+inner.addEventListener('touchmove', (e)=>{
+  if (e.touches.length === 2){
+    e.preventDefault();
+    const ratio = distance(e.touches) / startD;
+    scale = Math.min(maxS, Math.max(minS, startScale * ratio));
+    applyTransform();
+  }
+},{passive:false});
+
+// ---- (선택) 데스크톱 휠줌
+inner.addEventListener('wheel', (e)=>{
+  if (!e.ctrlKey && !e.metaKey) return; // 트랙패드 제스처만 반응(원하면 지워도 됨)
+  e.preventDefault();
+  const delta = e.deltaY < 0 ? 1.05 : 0.95;
+  scale = Math.min(maxS, Math.max(minS, scale * delta));
+  applyTransform();
+}, {passive:false});
+
+// 초기 적용
+applyTransform();
